@@ -1,0 +1,53 @@
+# Binaries
+gitflow-tui
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build directories
+build/
+dist/
+out/
+bin/
+
+# Test files
+*.test
+*.out
+coverage.html
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+vendor/
+node_modules/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# OS
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Editor specific
+editors/vscode/out/
+editors/vscode/node_modules/
+editors/vscode/*.vsix
+
+# Config (local)
+config.local.json

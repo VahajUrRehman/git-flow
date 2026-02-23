@@ -1,0 +1,230 @@
+{
+  "name": "gitflow-tui",
+  "displayName": "GitFlow TUI",
+  "description": "Complete Git Management TUI for VSCode - Beautiful terminal-based Git interface",
+  "version": "1.0.0",
+  "publisher": "gitflow",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "scm",
+    "terminal",
+    "tui",
+    "graph",
+    "version control"
+  ],
+  "activationEvents": [
+    "onCommand:gitflow.open",
+    "workspaceContains:.git"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitflow.open",
+        "title": "Open GitFlow TUI",
+        "category": "GitFlow",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "gitflow.toggle",
+        "title": "Toggle GitFlow TUI",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.close",
+        "title": "Close GitFlow TUI",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.status",
+        "title": "Git Status",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.log",
+        "title": "Git Log",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.branch",
+        "title": "Git Branches",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.commit",
+        "title": "Git Commit",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.push",
+        "title": "Git Push",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.pull",
+        "title": "Git Pull",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.stash",
+        "title": "Git Stash",
+        "category": "GitFlow"
+      },
+      {
+        "command": "gitflow.checkout",
+        "title": "Git Checkout",
+        "category": "GitFlow"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gitflow.open",
+        "key": "ctrl+shift+g ctrl+shift+g",
+        "mac": "cmd+shift+g cmd+shift+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "gitflow.toggle",
+        "key": "ctrl+shift+g g",
+        "mac": "cmd+shift+g g",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gitflow.open",
+          "group": "GitFlow"
+        },
+        {
+          "command": "gitflow.toggle",
+          "group": "GitFlow"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "gitflow.open",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "gitflow.open",
+          "group": "navigation",
+          "when": "resourceScheme == file"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GitFlow TUI",
+      "properties": {
+        "gitflow.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the gitflow-tui binary (auto-detected if empty)"
+        },
+        "gitflow.terminal.integrated": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use integrated terminal instead of external terminal"
+        },
+        "gitflow.theme.primary": {
+          "type": "string",
+          "default": "#00D9A5",
+          "description": "Primary color (Green)"
+        },
+        "gitflow.theme.secondary": {
+          "type": "string",
+          "default": "#00B4A6",
+          "description": "Secondary color (Teal)"
+        },
+        "gitflow.theme.tertiary": {
+          "type": "string",
+          "default": "#0091EA",
+          "description": "Tertiary color (Blue)"
+        },
+        "gitflow.theme.accent": {
+          "type": "string",
+          "default": "#00E5FF",
+          "description": "Accent color (Firozi/Cyan)"
+        },
+        "gitflow.theme.highlight": {
+          "type": "string",
+          "default": "#FF6D00",
+          "description": "Highlight color (Orange)"
+        },
+        "gitflow.graph.style": {
+          "type": "string",
+          "default": "unicode",
+          "enum": [
+            "ascii",
+            "unicode",
+            "compact"
+          ],
+          "description": "Git graph rendering style"
+        },
+        "gitflow.mouse.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable mouse support in terminal"
+        },
+        "gitflow.animations.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable animations"
+        }
+      }
+    },
+    "views": {
+      "scm": [
+        {
+          "id": "gitflowView",
+          "name": "GitFlow",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "gitflowView",
+        "contents": "[Open GitFlow TUI](command:gitflow.open)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4",
+    "@vscode/test-electron": "^2.2.0",
+    "@vscode/vsce": "^2.15.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gitflow/tui"
+  },
+  "bugs": {
+    "url": "https://github.com/gitflow/tui/issues"
+  },
+  "homepage": "https://github.com/gitflow/tui#readme"
+}
