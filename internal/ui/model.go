@@ -223,6 +223,31 @@ func New(cfg *config.Config) *Model {
 	// Initialize help
 	h := help.New()
 
+	// Initialize lists
+	commitList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	commitList.Title = "Commits"
+	commitList.SetShowHelp(false)
+
+	branchList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	branchList.Title = "Branches"
+	branchList.SetShowHelp(false)
+
+	fileList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	fileList.Title = "Files"
+	fileList.SetShowHelp(false)
+
+	stashList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	stashList.Title = "Stashes"
+	stashList.SetShowHelp(false)
+
+	remoteList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	remoteList.Title = "Remotes"
+	remoteList.SetShowHelp(false)
+
+	tagList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	tagList.Title = "Tags"
+	tagList.SetShowHelp(false)
+
 	return &Model{
 		config:     cfg,
 		repo:       repoPath,
@@ -233,6 +258,12 @@ func New(cfg *config.Config) *Model {
 		keys:       defaultKeys,
 		input:      input,
 		textArea:   ta,
+		commitList: commitList,
+		branchList: branchList,
+		fileList:   fileList,
+		stashList:  stashList,
+		remoteList: remoteList,
+		tagList:    tagList,
 	}
 }
 
@@ -308,6 +339,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.viewport.Width = msg.Width
 		m.viewport.Height = msg.Height - 10
+
+		// Resize lists
+		listWidth := msg.Width - 4
+		listHeight := msg.Height - 8
+		if listWidth < 20 {
+			listWidth = 20
+		}
+		if listHeight < 10 {
+			listHeight = 10
+		}
+
+		m.commitList.SetWidth(listWidth)
+		m.commitList.SetHeight(listHeight)
+		m.branchList.SetWidth(listWidth)
+		m.branchList.SetHeight(listHeight)
+		m.fileList.SetWidth(listWidth)
+		m.fileList.SetHeight(listHeight)
+		m.stashList.SetWidth(listWidth)
+		m.stashList.SetHeight(listHeight)
+		m.remoteList.SetWidth(listWidth)
+		m.remoteList.SetHeight(listHeight)
+		m.tagList.SetWidth(listWidth)
+		m.tagList.SetHeight(listHeight)
+
 		m.ready = true
 
 	case tea.MouseMsg:
