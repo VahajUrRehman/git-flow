@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -21,7 +22,8 @@ import (
 type ViewState int
 
 const (
-	ViewDashboard ViewState = iota
+	ViewSplash ViewState = iota
+	ViewDashboard
 	ViewGraph
 	ViewBranches
 	ViewStatus
@@ -34,6 +36,23 @@ const (
 	ViewConfirm
 	ViewInput
 )
+
+// Splash screen banner
+const asciiBanner = `
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   ██████╗ ██╗████████╗███████╗██╗      ██████╗ ██╗    ██╗       ║
+║  ██╔════╝ ██║╚══██╔══╝██╔════╝██║     ██╔═══██╗██║    ██║       ║
+║  ██║  ███╗██║   ██║   █████╗  ██║     ██║   ██║██║ █╗ ██║       ║
+║  ██║   ██║██║   ██║   ██╔══╝  ██║     ██║   ██║██║███╗██║       ║
+║  ╚██████╔╝██║   ██║   ██║     ███████╗╚██████╔╝╚███╔███╔╝       ║
+║   ╚═════╝ ╚═╝   ╚═╝   ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝        ║
+║                                                                  ║
+║           🌿 Complete Git Management TUI 🌿                      ║
+║         Green • Teal • Blue • Firozi • Orange                   ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+`
 
 // Tab represents a tab in the UI
 type Tab struct {
@@ -73,6 +92,10 @@ type Model struct {
 	loading       bool
 	errorMsg      string
 	successMsg    string
+
+	// Splash screen
+	splashTick    int
+	showSplash    bool
 
 	// Data
 	commits   []git.Commit
@@ -249,22 +272,33 @@ func New(cfg *config.Config) *Model {
 	tagList.SetShowHelp(false)
 
 	return &Model{
-		config:     cfg,
-		repo:       repoPath,
-		git:        g,
-		repoPath:   repoPath.Path,
-		currentView: ViewDashboard,
-		help:       h,
-		keys:       defaultKeys,
-		input:      input,
-		textArea:   ta,
-		commitList: commitList,
-		branchList: branchList,
-		fileList:   fileList,
-		stashList:  stashList,
-		remoteList: remoteList,
-		tagList:    tagList,
+		config:      cfg,
+		repo:        repoPath,
+		git:         g,
+		repoPath:    repoPath.Path,
+		currentView: ViewSplash,
+		showSplash:  true,
+		splashTick:  0,
+		help:        h,
+		keys:        defaultKeys,
+		input:       input,
+		textArea:    ta,
+		commitList:  commitList,
+		branchList:  branchList,
+		fileList:    fileList,
+		stashList:   stashList,
+		remoteList:  remoteList,
+		tagList:     tagList,
 	}
+}
+
+// splashTickMsg is sent for splash screen animation
+type splashTickMsg struct{}
+
+func splashTick() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return splashTickMsg{}
+	})
 }
 
 // Init initializes the model
@@ -272,6 +306,7 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadData(),
 		tea.EnterAltScreen,
+		splashTick(),
 	)
 }
 
@@ -334,6 +369,17 @@ type refreshMsg struct{}
 // Update handles messages
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case splashTickMsg:
+		if m.showSplash {
+			m.splashTick++
+			// Show splash for 2 seconds (20 ticks at 100ms)
+			if m.splashTick >= 20 {
+				m.showSplash = false
+				m.currentView = ViewDashboard
+			}
+			return m, splashTick()
+		}
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -407,6 +453,13 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 // handleKey handles keyboard events
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Skip splash screen on any key press
+	if m.showSplash {
+		m.showSplash = false
+		m.currentView = ViewDashboard
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -582,6 +635,11 @@ func (m *Model) View() string {
 		return "Loading..."
 	}
 
+	// Show splash screen
+	if m.showSplash {
+		return m.renderSplash()
+	}
+
 	var sections []string
 
 	// Banner
@@ -600,6 +658,53 @@ func (m *Model) View() string {
 	sections = append(sections, m.renderHelp())
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+// renderSplash renders the animated splash screen
+func (m *Model) renderSplash() string {
+	// Animate loading dots
+	dots := strings.Repeat(".", m.splashTick%4)
+	loading := fmt.Sprintf("Loading%s", dots)
+
+	// Color animation - cycle through theme colors
+	colors := []string{
+		m.config.Theme.Colors.Primary,
+		m.config.Theme.Colors.Secondary,
+		m.config.Theme.Colors.Tertiary,
+		m.config.Theme.Colors.Accent,
+	}
+	color := colors[m.splashTick%len(colors)]
+
+	// Style the banner
+	bannerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(color)).
+		Bold(true).
+		Align(lipgloss.Center)
+
+	// Loading text style
+	loadingStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.config.Theme.Colors.Highlight)).
+		Bold(true)
+
+	// Version text
+	versionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.config.Theme.Colors.Muted))
+
+	// Build the splash content
+	content := lipgloss.JoinVertical(
+		lipgloss.Center,
+		bannerStyle.Render(asciiBanner),
+		"",
+		loadingStyle.Render(loading),
+		versionStyle.Render("GitFlow TUI v1.0.0 - Press any key to skip"),
+	)
+
+	// Center the whole thing on screen
+	return lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(content)
 }
 
 // renderBanner renders the ASCII banner
