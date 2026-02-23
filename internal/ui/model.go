@@ -41,15 +41,15 @@ const (
 const asciiBanner = `
 ╔══════════════════════════════════════════════════════════════════╗
 ║                                                                  ║
-║   ██████╗ ██╗████████╗███████╗██╗      ██████╗ ██╗    ██╗       ║
-║  ██╔════╝ ██║╚══██╔══╝██╔════╝██║     ██╔═══██╗██║    ██║       ║
-║  ██║  ███╗██║   ██║   █████╗  ██║     ██║   ██║██║ █╗ ██║       ║
-║  ██║   ██║██║   ██║   ██╔══╝  ██║     ██║   ██║██║███╗██║       ║
-║  ╚██████╔╝██║   ██║   ██║     ███████╗╚██████╔╝╚███╔███╔╝       ║
-║   ╚═════╝ ╚═╝   ╚═╝   ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝        ║
+║   ██████╗ ██╗████████╗███████╗██╗      ██████╗ ██╗    ██╗        ║
+║  ██╔════╝ ██║╚══██╔══╝██╔════╝██║     ██╔═══██╗██║    ██║        ║
+║  ██║  ███╗██║   ██║   █████╗  ██║     ██║   ██║██║ █╗ ██║        ║
+║  ██║   ██║██║   ██║   ██╔══╝  ██║     ██║   ██║██║███╗██║        ║
+║  ╚██████╔╝██║   ██║   ██║     ███████╗╚██████╔╝╚███╔███╔╝        ║
+║   ╚═════╝ ╚═╝   ╚═╝   ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝         ║
 ║                                                                  ║
-║           🌿 Complete Git Management TUI 🌿                      ║
-║         Green • Teal • Blue • Firozi • Orange                   ║
+║           🌿 Complete Git Management TUI 🌿					  ║   
+║         									                       ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 `
@@ -84,45 +84,45 @@ type Model struct {
 	repoPath string
 
 	// State
-	currentView   ViewState
-	activeTab     int
-	width         int
-	height        int
-	ready         bool
-	loading       bool
-	errorMsg      string
-	successMsg    string
+	currentView ViewState
+	activeTab   int
+	width       int
+	height      int
+	ready       bool
+	loading     bool
+	errorMsg    string
+	successMsg  string
 
 	// Splash screen
-	splashTick    int
-	showSplash    bool
+	splashTick int
+	showSplash bool
 
 	// Data
-	commits   []git.Commit
-	branches  []git.Branch
-	status    *git.Status
-	remotes   []git.Remote
-	stashes   []git.Stash
-	tags      []git.Tag
+	commits       []git.Commit
+	branches      []git.Branch
+	status        *git.Status
+	remotes       []git.Remote
+	stashes       []git.Stash
+	tags          []git.Tag
 	currentBranch string
 
 	// UI Components
-	help         help.Model
-	keys         keyMap
-	viewport     viewport.Model
-	list         list.Model
-	input        textinput.Model
-	textArea     textarea.Model
-	commitList   list.Model
-	branchList   list.Model
-	fileList     list.Model
-	stashList    list.Model
-	remoteList   list.Model
-	tagList      list.Model
+	help       help.Model
+	keys       keyMap
+	viewport   viewport.Model
+	list       list.Model
+	input      textinput.Model
+	textArea   textarea.Model
+	commitList list.Model
+	branchList list.Model
+	fileList   list.Model
+	stashList  list.Model
+	remoteList list.Model
+	tagList    list.Model
 
 	// Input state
-	inputMode     string
-	inputCallback func(string)
+	inputMode       string
+	inputCallback   func(string)
 	confirmCallback func(bool)
 
 	// Selection
@@ -132,8 +132,8 @@ type Model struct {
 	selectedStash  int
 
 	// Diff view
-	diffContent   string
-	diffStaged    bool
+	diffContent string
+	diffStaged  bool
 
 	// Graph
 	graphRenderer *graph.Graph
@@ -314,7 +314,7 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) loadData() tea.Cmd {
 	return func() tea.Msg {
 		var err error
-		
+
 		// Load commits
 		m.commits, err = m.git.GetCommits(50)
 		if err != nil {
@@ -487,6 +487,32 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.currentView = ViewDashboard
 		}
 
+	// Git command shortcuts
+	case msg.String() == "c":
+		return m, cmdCommit(m)
+	case msg.String() == "p":
+		return m, cmdPush(m)
+	case msg.String() == "P":
+		return m, cmdPull(m)
+	case msg.String() == "f":
+		return m, cmdFetch(m)
+	case msg.String() == "b":
+		return m, cmdCheckout(m)
+	case msg.String() == "m":
+		return m, cmdMerge(m)
+	case msg.String() == "R":
+		return m, cmdRebase(m)
+	case msg.String() == "S":
+		return m, cmdStash(m)
+	case msg.String() == "O":
+		return m, cmdStashPop(m)
+	case msg.String() == "t":
+		return m, cmdTag(m)
+	case msg.String() == "X":
+		return m, cmdReset(m)
+	case msg.String() == "C":
+		return m, cmdCherryPick(m)
+
 	default:
 		// View-specific key handling
 		switch m.currentView {
@@ -657,6 +683,9 @@ func (m *Model) View() string {
 	// Help
 	sections = append(sections, m.renderHelp())
 
+	// Command footer (nano-style)
+	sections = append(sections, m.renderCommandFooter())
+
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
@@ -711,7 +740,7 @@ func (m *Model) renderSplash() string {
 func (m *Model) renderBanner() string {
 	banner := `
 ╔══════════════════════════════════════════════════════════════════╗
-║  🌿 GitFlow TUI - Complete Git Management                        ║
+║  🚀 GitFlow TUI - The Modern Terminal Git Experience             ║
 ║  Branch: ` + m.currentBranch + strings.Repeat(" ", max(0, 50-len(m.currentBranch))) + `║
 ╚══════════════════════════════════════════════════════════════════╝`
 
@@ -800,7 +829,7 @@ func (m *Model) renderDashboard() string {
 		m.config.Theme.Colors.Accent,
 		m.config.Theme.Colors.Highlight,
 	}
-	
+
 	for i, c := range m.commits {
 		if i >= 5 {
 			break
@@ -859,7 +888,7 @@ func (m *Model) renderGraph() string {
 	// Use colorful graph
 	g := graph.NewColored(m.commits, graphStyle, m.config.Theme.Colors)
 	g.SetWidth(m.width - 4)
-	
+
 	return style.Render(g.Render())
 }
 
@@ -1013,6 +1042,59 @@ func (m *Model) renderStatusBar() string {
 // renderHelp renders the help bar
 func (m *Model) renderHelp() string {
 	return m.help.View(m.keys)
+}
+
+// renderCommandFooter renders nano-style command footer
+func (m *Model) renderCommandFooter() string {
+	// Define commands to show based on current view
+	var commands []struct {
+		key  string
+		desc string
+	}
+
+	// Common commands always shown
+	commands = []struct {
+		key  string
+		desc string
+	}{
+		{"c", "commit"},
+		{"p", "push"},
+		{"P", "pull"},
+		{"b", "checkout"},
+		{"S", "stash"},
+		{"?", "help"},
+		{"q", "quit"},
+	}
+
+	// Build footer items
+	var items []string
+	for _, cmd := range commands {
+		// Key style (highlighted)
+		keyStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.config.Theme.Colors.Background)).
+			Background(lipgloss.Color(m.config.Theme.Colors.Primary)).
+			Bold(true).
+			Padding(0, 1)
+
+		// Description style
+		descStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.config.Theme.Colors.Foreground)).
+			Padding(0, 1)
+
+		item := keyStyle.Render(cmd.key) + descStyle.Render(cmd.desc)
+		items = append(items, item)
+	}
+
+	// Join all items
+	footer := lipgloss.JoinHorizontal(lipgloss.Left, items...)
+
+	// Background bar
+	barStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
+		Width(m.width).
+		Padding(0, 1)
+
+	return barStyle.Render(footer)
 }
 
 // Helper methods
