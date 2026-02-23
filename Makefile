@@ -1,78 +1,165 @@
-# GitFlow TUI Makefile
+# GitFlow TUI - Universal Build Makefile
+# Builds for all platforms: Windows, macOS, Linux (including WSL)
 
-# Variables
+# Binary name
 BINARY_NAME=gitflow-tui
+
+# Version info (auto-detect or use 'dev')
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
 
-# Go parameters
-GOCMD=go
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-GOMOD=$(GOCMD) mod
+# Build flags
+LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
 
 # Directories
 BUILD_DIR=build
 DIST_DIR=dist
-CMD_DIR=cmd/gitflow-tui
+RELEASE_DIR=release
+SCRIPTS_DIR=scripts
 
-# Platforms
-PLATFORMS=darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64
+# Platforms to build for
+PLATFORMS=windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
 
-# Colors
+# Colors for output
 GREEN=\033[0;32m
 BLUE=\033[0;34m
 ORANGE=\033[0;33m
-NC=\033[0m # No Color
+RED=\033[0;31m
+NC=\033[0m
 
-.PHONY: all build clean test lint install uninstall deps build-all package release
+.PHONY: all build build-all build-windows build-macos build-linux build-wsl clean test lint fmt install uninstall \
+        package package-all package-windows package-macos package-linux \
+        release release-check release-local \
+        install-scripts update-formulas checksums
 
-all: deps build
+# Default target
+all: deps build-all package-all checksums
 
-## Build the binary for current platform
+## Dependencies
+deps:
+	@echo "$(BLUE)Installing dependencies...$(NC)"
+	go mod download
+	go mod tidy
+	@echo "$(GREEN)✓ Dependencies ready$(NC)"
+
+## Build for current platform
 build:
-	@echo "$(BLUE)Building $(BINARY_NAME)...$(NC)"
+	@echo "$(BLUE)Building for current platform...$(NC)"
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/gitflow-tui
 	@echo "$(GREEN)✓ Built: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
 
 ## Build for all platforms
-build-all:
-	@echo "$(BLUE)Building for all platforms...$(NC)"
-	@mkdir -p $(DIST_DIR)
-	@for platform in $(PLATFORMS); do \
-		GOOS=$$(echo $$platform | cut -d/ -f1); \
-		GOARCH=$$(echo $$platform | cut -d/ -f2); \
-		OUTPUT=$(DIST_DIR)/$(BINARY_NAME)-$$GOOS-$$GOARCH; \
-		if [ "$$GOOS" = "windows" ]; then OUTPUT="$$OUTPUT.exe"; fi; \
-		echo "Building for $$GOOS/$$GOARCH..."; \
-		GOOS=$$GOOS GOARCH=$$GOARCH $(GOBUILD) $(LDFLAGS) -o $$OUTPUT ./$(CMD_DIR); \
-	done
-	@echo "$(GREEN)✓ Built all platforms$(NC)"
+build-all: build-windows build-macos build-linux
+	@echo "$(GREEN)✓ All platforms built$(NC)"
 
-## Clean build artifacts
-clean:
-	@echo "$(ORANGE)Cleaning...$(NC)"
-	$(GOCLEAN)
-	@rm -rf $(BUILD_DIR) $(DIST_DIR)
-	@echo "$(GREEN)✓ Cleaned$(NC)"
+## Build for Windows
+build-windows:
+	@echo "$(BLUE)Building for Windows...$(NC)"
+	@mkdir -p $(DIST_DIR)/windows
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/windows/$(BINARY_NAME)-windows-amd64.exe ./cmd/gitflow-tui
+	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/windows/$(BINARY_NAME)-windows-arm64.exe ./cmd/gitflow-tui
+	@echo "$(GREEN)✓ Windows builds complete$(NC)"
+
+## Build for macOS
+build-macos:
+	@echo "$(BLUE)Building for macOS...$(NC)"
+	@mkdir -p $(DIST_DIR)/macos
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/macos/$(BINARY_NAME)-darwin-amd64 ./cmd/gitflow-tui
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/macos/$(BINARY_NAME)-darwin-arm64 ./cmd/gitflow-tui
+	@echo "$(GREEN)✓ macOS builds complete$(NC)"
+
+## Build for Linux
+build-linux:
+	@echo "$(BLUE)Building for Linux...$(NC)"
+	@mkdir -p $(DIST_DIR)/linux
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/linux/$(BINARY_NAME)-linux-amd64 ./cmd/gitflow-tui
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/linux/$(BINARY_NAME)-linux-arm64 ./cmd/gitflow-tui
+	@echo "$(GREEN)✓ Linux builds complete$(NC)"
+
+## Build specifically for WSL (Linux AMD64)
+build-wsl: build-linux
+	@echo "$(BLUE)WSL build ready at: $(DIST_DIR)/linux/$(BINARY_NAME)-linux-amd64$(NC)"
+	@echo "$(GREEN)✓ Copy to WSL: cp $(DIST_DIR)/linux/$(BINARY_NAME)-linux-amd64 /usr/local/bin/$(BINARY_NAME)$(NC)"
+
+## Create all packages
+package-all: package-windows package-macos package-linux
+	@echo "$(GREEN)✓ All packages created$(NC)"
+
+## Package Windows builds
+package-windows: build-windows
+	@echo "$(BLUE)Packaging Windows builds...$(NC)"
+	@mkdir -p $(RELEASE_DIR)
+	cd $(DIST_DIR)/windows && \
+		zip -q ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.zip $(BINARY_NAME)-windows-amd64.exe && \
+		zip -q ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-windows-arm64.zip $(BINARY_NAME)-windows-arm64.exe
+	@echo "$(GREEN)✓ Windows packages created$(NC)"
+
+## Package macOS builds
+package-macos: build-macos
+	@echo "$(BLUE)Packaging macOS builds...$(NC)"
+	@mkdir -p $(RELEASE_DIR)
+	cd $(DIST_DIR)/macos && \
+		tar -czf ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz $(BINARY_NAME)-darwin-amd64 && \
+		tar -czf ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz $(BINARY_NAME)-darwin-arm64
+	@echo "$(GREEN)✓ macOS packages created$(NC)"
+
+## Package Linux builds
+package-linux: build-linux
+	@echo "$(BLUE)Packaging Linux builds...$(NC)"
+	@mkdir -p $(RELEASE_DIR)
+	cd $(DIST_DIR)/linux && \
+		tar -czf ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(BINARY_NAME)-linux-amd64 && \
+		tar -czf ../../$(RELEASE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(BINARY_NAME)-linux-arm64
+	@echo "$(GREEN)✓ Linux packages created$(NC)"
+
+## Generate SHA256 checksums
+checksums: package-all
+	@echo "$(BLUE)Generating checksums...$(NC)"
+	@cd $(RELEASE_DIR) && sha256sum * > checksums.txt
+	@echo "$(GREEN)✓ Checksums saved to $(RELEASE_DIR)/checksums.txt$(NC)"
+
+## Update install scripts with version
+update-scripts:
+	@echo "$(BLUE)Updating install scripts...$(NC)"
+	@sed -i.bak 's/VERSION_PLACEHOLDER/$(VERSION)/g' $(SCRIPTS_DIR)/homebrew-formula.rb && rm $(SCRIPTS_DIR)/homebrew-formula.rb.bak
+	@sed -i.bak 's/VERSION_PLACEHOLDER/$(VERSION)/g' $(SCRIPTS_DIR)/scoop-manifest.json && rm $(SCRIPTS_DIR)/scoop-manifest.json.bak
+	@echo "$(GREEN)✓ Scripts updated$(NC)"
+
+## Copy install scripts to release
+copy-scripts: update-scripts
+	@echo "$(BLUE)Copying install scripts...$(NC)"
+	@cp $(SCRIPTS_DIR)/homebrew-formula.rb $(RELEASE_DIR)/
+	@cp $(SCRIPTS_DIR)/scoop-manifest.json $(RELEASE_DIR)/
+	@cp install.sh $(RELEASE_DIR)/
+	@echo "$(GREEN)✓ Scripts copied$(NC)"
+
+## Create complete release
+release: clean deps build-all package-all checksums copy-scripts
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)✓ Release $(VERSION) ready!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "Files in $(RELEASE_DIR)/:"
+	@ls -lh $(RELEASE_DIR)/
+	@echo ""
+	@echo "$(BLUE)Next steps:$(NC)"
+	@echo "  1. Test binaries: $(DIST_DIR)/<platform>/"
+	@echo "  2. Upload packages from $(RELEASE_DIR)/"
+	@echo "  3. Update Homebrew formula with SHA256 hashes"
+
+## Create local release (without git requirements)
+release-local: deps build-all package-all
+	@echo "$(GREEN)✓ Local release built$(NC)"
+	@echo "Files in $(DIST_DIR)/:"
+	@ls -lh $(DIST_DIR)/*/
 
 ## Run tests
 test:
 	@echo "$(BLUE)Running tests...$(NC)"
-	$(GOTEST) -v ./...
+	go test -v ./...
 	@echo "$(GREEN)✓ Tests passed$(NC)"
-
-## Run tests with coverage
-test-coverage:
-	@echo "$(BLUE)Running tests with coverage...$(NC)"
-	$(GOTEST) -v -coverprofile=coverage.out ./...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)✓ Coverage report generated: coverage.html$(NC)"
 
 ## Run linter
 lint:
@@ -80,130 +167,77 @@ lint:
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run; \
 	else \
-		echo "$(ORANGE)golangci-lint not installed, using go vet$(NC)"; \
 		go vet ./...; \
 	fi
 	@echo "$(GREEN)✓ Linting passed$(NC)"
 
-## Install dependencies
-deps:
-	@echo "$(BLUE)Installing dependencies...$(NC)"
-	$(GOMOD) download
-	$(GOMOD) tidy
-	@echo "$(GREEN)✓ Dependencies installed$(NC)"
+## Format code
+fmt:
+	@echo "$(BLUE)Formatting code...$(NC)"
+	gofmt -w .
+	@echo "$(GREEN)✓ Code formatted$(NC)"
 
-## Install binary to system
+## Clean build artifacts
+clean:
+	@echo "$(ORANGE)Cleaning build artifacts...$(NC)"
+	@rm -rf $(BUILD_DIR) $(DIST_DIR) $(RELEASE_DIR)
+	@go clean
+	@echo "$(GREEN)✓ Cleaned$(NC)"
+
+## Install locally (current platform only)
 install: build
-	@echo "$(BLUE)Installing $(BINARY_NAME)...$(NC)"
-	@install -d $(DESTDIR)/usr/local/bin
-	@install -m 755 $(BUILD_DIR)/$(BINARY_NAME) $(DESTDIR)/usr/local/bin/
+	@echo "$(BLUE)Installing to /usr/local/bin...$(NC)"
+	@cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/
+	@chmod +x /usr/local/bin/$(BINARY_NAME)
 	@echo "$(GREEN)✓ Installed to /usr/local/bin/$(BINARY_NAME)$(NC)"
 
-## Uninstall binary
+## Uninstall
 uninstall:
-	@echo "$(ORANGE)Uninstalling $(BINARY_NAME)...$(NC)"
+	@echo "$(ORANGE)Uninstalling...$(NC)"
 	@rm -f /usr/local/bin/$(BINARY_NAME)
 	@echo "$(GREEN)✓ Uninstalled$(NC)"
 
-## Package for distribution
-package: build-all
-	@echo "$(BLUE)Packaging...$(NC)"
-	@mkdir -p $(DIST_DIR)/packages
-	@for platform in $(PLATFORMS); do \
-		GOOS=$$(echo $$platform | cut -d/ -f1); \
-		GOARCH=$$(echo $$platform | cut -d/ -f2); \
-		BINARY=$(BINARY_NAME)-$$GOOS-$$GOARCH; \
-		if [ "$$GOOS" = "windows" ]; then BINARY="$$BINARY.exe"; fi; \
-		ARCHIVE=$(DIST_DIR)/packages/$(BINARY_NAME)-$(VERSION)-$$GOOS-$$GOARCH.tar.gz; \
-		if [ "$$GOOS" = "windows" ]; then ARCHIVE="$${ARCHIVE%.tar.gz}.zip"; fi; \
-		echo "Packaging $$BINARY..."; \
-		if [ "$$GOOS" = "windows" ]; then \
-			cd $(DIST_DIR) && zip -q ../$$ARCHIVE $$BINARY && cd ..; \
-		else \
-			tar -czf $$ARCHIVE -C $(DIST_DIR) $$BINARY; \
-		fi; \
-	done
-	@echo "$(GREEN)✓ Packaged$(NC)"
-
-## Create release
-release: clean test lint package
-	@echo "$(GREEN)✓ Release $(VERSION) ready$(NC)"
-
-## Run the application
-run: build
-	@echo "$(BLUE)Running $(BINARY_NAME)...$(NC)"
-	@./$(BUILD_DIR)/$(BINARY_NAME)
-
-## Run with debug mode
-debug: build
-	@echo "$(BLUE)Running in debug mode...$(NC)"
-	@DEBUG=1 ./$(BUILD_DIR)/$(BINARY_NAME)
+## Install to WSL (from Windows)
+install-wsl: build-wsl
+	@echo "$(BLUE)Installing to WSL...$(NC)"
+	@cp $(DIST_DIR)/linux/$(BINARY_NAME)-linux-amd64 /mnt/c/temp/$(BINARY_NAME)
+	@wsl -e sudo cp /mnt/c/temp/$(BINARY_NAME) /usr/local/bin/
+	@wsl -e sudo chmod +x /usr/local/bin/$(BINARY_NAME)
+	@echo "$(GREEN)✓ Installed to WSL$(NC)"
 
 ## Show help
 help:
-	@echo "GitFlow TUI Makefile"
+	@echo "GitFlow TUI Build System"
 	@echo ""
-	@echo "Usage:"
-	@echo "  make [target]"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(BLUE)%-15s$(NC) %s\n", $$1, $$2}'
-
-## Development helpers
-
-fmt:
-	@echo "$(BLUE)Formatting code...$(NC)"
-	@gofmt -w .
-	@echo "$(GREEN)✓ Formatted$(NC)"
-
-vet:
-	@echo "$(BLUE)Running go vet...$(NC)"
-	@go vet ./...
-	@echo "$(GREEN)✓ Vet passed$(NC)"
-
-check: fmt vet lint test
-	@echo "$(GREEN)✓ All checks passed$(NC)"
-
-## Install development tools
-install-tools:
-	@echo "$(BLUE)Installing development tools...$(NC)"
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@echo "$(GREEN)✓ Tools installed$(NC)"
-
-## Generate assets (banners, etc.)
-generate-assets:
-	@echo "$(BLUE)Generating assets...$(NC)"
-	@mkdir -p assets
-	@echo "$(GREEN)✓ Assets generated$(NC)"
-
-## Build Neovim plugin
-build-nvim:
-	@echo "$(BLUE)Building Neovim plugin...$(NC)"
-	@echo "$(GREEN)✓ Neovim plugin ready$(NC)"
-
-## Build VSCode extension
-build-vscode:
-	@echo "$(BLUE)Building VSCode extension...$(NC)"
-	@cd editors/vscode && npm install && npm run compile
-	@echo "$(GREEN)✓ VSCode extension built$(NC)"
-
-## Package VSCode extension
-package-vscode: build-vscode
-	@echo "$(BLUE)Packaging VSCode extension...$(NC)"
-	@cd editors/vscode && npx vsce package
-	@echo "$(GREEN)✓ VSCode extension packaged$(NC)"
-
-## Install Neovim plugin locally
-install-nvim:
-	@echo "$(BLUE)Installing Neovim plugin...$(NC)"
-	@mkdir -p ~/.config/nvim/lua/gitflow
-	@cp -r editors/nvim/lua/gitflow/* ~/.config/nvim/lua/gitflow/
-	@echo "$(GREEN)✓ Neovim plugin installed$(NC)"
-
-## Install VSCode extension locally
-install-vscode: package-vscode
-	@echo "$(BLUE)Installing VSCode extension...$(NC)"
-	@code --install-extension editors/vscode/gitflow-tui-*.vsix
-	@echo "$(GREEN)✓ VSCode extension installed$(NC)"
-
-.DEFAULT_GOAL := help
+	@echo "Main Targets:"
+	@echo "  $(GREEN)make all$(NC)          - Full build for all platforms + packages"
+	@echo "  $(GREEN)make build$(NC)        - Build for current platform only"
+	@echo "  $(GREEN)make build-all$(NC)    - Build for all platforms"
+	@echo "  $(GREEN)make release$(NC)      - Create complete release with packages"
+	@echo ""
+	@echo "Platform-Specific:"
+	@echo "  $(BLUE)make build-windows$(NC) - Build Windows binaries (amd64, arm64)"
+	@echo "  $(BLUE)make build-macos$(NC)   - Build macOS binaries (Intel, ARM)"
+	@echo "  $(BLUE)make build-linux$(NC)   - Build Linux binaries (amd64, arm64)"
+	@echo "  $(BLUE)make build-wsl$(NC)     - Build for WSL (Linux amd64)"
+	@echo ""
+	@echo "Packaging:"
+	@echo "  $(BLUE)make package-all$(NC)  - Create zip/tar.gz for all platforms"
+	@echo "  $(BLUE)make package-windows$(NC) - Create Windows zip files"
+	@echo "  $(BLUE)make package-macos$(NC)   - Create macOS tar.gz files"
+	@echo "  $(BLUE)make package-linux$(NC)   - Create Linux tar.gz files"
+	@echo ""
+	@echo "Development:"
+	@echo "  $(BLUE)make test$(NC)         - Run tests"
+	@echo "  $(BLUE)make lint$(NC)         - Run linter"
+	@echo "  $(BLUE)make fmt$(NC)          - Format code"
+	@echo "  $(BLUE)make clean$(NC)        - Clean all build artifacts"
+	@echo ""
+	@echo "Installation:"
+	@echo "  $(BLUE)make install$(NC)      - Install locally (current platform)"
+	@echo "  $(BLUE)make uninstall$(NC)    - Remove local installation"
+	@echo "  $(BLUE)make install-wsl$(NC)  - Install to WSL from Windows"
+	@echo ""
+	@echo "Current Version: $(ORANGE)$(VERSION)$(NC)"

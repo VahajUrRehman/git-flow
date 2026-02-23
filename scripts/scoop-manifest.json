@@ -1,12 +1,12 @@
 {
-  "version": "VERSION_PLACEHOLDER",
+  "version": "0.1.0",
   "description": "Terminal-based Git management application with beautiful TUI",
   "homepage": "https://github.com/gitflow/tui",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/gitflow/tui/releases/download/vVERSION_PLACEHOLDER/gitflow-tui-windows-amd64.zip",
-      "hash": "WINDOWS_AMD64_SHA256"
+      "url": "https://github.com/gitflow/tui/releases/download/v0.1.0/gitflow-tui-windows-amd64.zip",
+      "hash": "b0ff3ea5b846a77ac3d9ce65dd771126a2f9cffcad393660c3eea028092d0590"
     }
   },
   "bin": "gitflow-tui.exe",

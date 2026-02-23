@@ -786,20 +786,38 @@ func (m *Model) renderDashboard() string {
 		m.repoPath, m.currentBranch, len(m.commits))
 	sections = append(sections, infoStyle.Render(info))
 
-	// Recent commits
+	// Recent commits - colorful
 	commitStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(m.config.Theme.Colors.Border)).
 		Padding(1)
 
-	var commits string
+	var commitLines []string
+	colors := []string{
+		m.config.Theme.Colors.Primary,
+		m.config.Theme.Colors.Secondary,
+		m.config.Theme.Colors.Tertiary,
+		m.config.Theme.Colors.Accent,
+		m.config.Theme.Colors.Highlight,
+	}
+	
 	for i, c := range m.commits {
 		if i >= 5 {
 			break
 		}
-		commits += fmt.Sprintf("%s %s\n", c.ShortHash, c.Message)
+		color := colors[i%len(colors)]
+		dot := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(color)).
+			Render("●")
+		hash := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.config.Theme.Colors.Tertiary)).
+			Render(c.ShortHash)
+		msg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.config.Theme.Colors.Foreground)).
+			Render(c.Message)
+		commitLines = append(commitLines, fmt.Sprintf("%s %s %s", dot, hash, msg))
 	}
-	sections = append(sections, commitStyle.Render("Recent Commits:\n"+commits))
+	sections = append(sections, commitStyle.Render("Recent Commits:\n"+strings.Join(commitLines, "\n")))
 
 	// Working tree status
 	statusStyle := lipgloss.NewStyle().
@@ -838,43 +856,23 @@ func (m *Model) renderGraph() string {
 		graphStyle = graph.Unicode
 	}
 
-	g := graph.New(m.commits, graphStyle)
+	// Use colorful graph
+	g := graph.NewColored(m.commits, graphStyle, m.config.Theme.Colors)
 	g.SetWidth(m.width - 4)
 	
 	return style.Render(g.Render())
 }
 
-// renderBranches renders the branches view
+// renderBranches renders the colorful branches view
 func (m *Model) renderBranches() string {
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(m.config.Theme.Colors.Border)).
 		Padding(1)
 
-	var content strings.Builder
-	for i, b := range m.branches {
-		prefix := "  "
-		if b.Current {
-			prefix = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(m.config.Theme.Colors.Accent)).
-				Render("● ")
-		}
-
-		line := prefix + b.Name
-		if b.Ahead > 0 || b.Behind > 0 {
-			line += fmt.Sprintf(" [%d↑ %d↓]", b.Ahead, b.Behind)
-		}
-
-		if i == m.selectedBranch {
-			line = lipgloss.NewStyle().
-				Background(lipgloss.Color(m.config.Theme.Colors.Tertiary)).
-				Render(line)
-		}
-
-		content.WriteString(line + "\n")
-	}
-
-	return style.Render(content.String())
+	// Use colorful branch graph renderer
+	g := graph.NewColored(nil, graph.Unicode, m.config.Theme.Colors)
+	return style.Render(g.RenderBranchGraph(m.branches, m.currentBranch))
 }
 
 // renderStatus renders the status view
@@ -884,44 +882,8 @@ func (m *Model) renderStatus() string {
 		BorderForeground(lipgloss.Color(m.config.Theme.Colors.Border)).
 		Padding(1)
 
-	var content strings.Builder
-
-	// Staged files
-	content.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.config.Theme.Colors.Success)).
-		Bold(true).
-		Render("Staged:\n"))
-	if m.status != nil {
-		for _, f := range m.status.Staged {
-			content.WriteString(fmt.Sprintf("  + %s\n", f.Path))
-		}
-	}
-	content.WriteString("\n")
-
-	// Unstaged files
-	content.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.config.Theme.Colors.Warning)).
-		Bold(true).
-		Render("Unstaged:\n"))
-	if m.status != nil {
-		for _, f := range m.status.Unstaged {
-			content.WriteString(fmt.Sprintf("  ~ %s\n", f.Path))
-		}
-	}
-	content.WriteString("\n")
-
-	// Untracked files
-	content.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.config.Theme.Colors.Muted)).
-		Bold(true).
-		Render("Untracked:\n"))
-	if m.status != nil {
-		for _, f := range m.status.Untracked {
-			content.WriteString(fmt.Sprintf("  ? %s\n", f))
-		}
-	}
-
-	return style.Render(content.String())
+	// Use colorful status renderer
+	return style.Render(graph.RenderStatusGraph(m.status, m.config.Theme.Colors))
 }
 
 // renderStash renders the stash view

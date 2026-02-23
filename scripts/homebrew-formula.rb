@@ -4,7 +4,7 @@
 class GitflowTui < Formula
   desc "Terminal-based Git management application with beautiful TUI"
   homepage "https://github.com/gitflow/tui"
-  version "VERSION_PLACEHOLDER"
+  version "0.1.0"
   
   if OS.mac? && Hardware::CPU.intel?
     url "https://github.com/gitflow/tui/releases/download/v#{version}/gitflow-tui-darwin-amd64.tar.gz"
