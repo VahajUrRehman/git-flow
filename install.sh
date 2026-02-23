@@ -1,29 +1,43 @@
 #!/bin/bash
-
 # GitFlow TUI Installation Script
 # Usage: curl -sSL https://raw.githubusercontent.com/gitflow/tui/main/install.sh | bash
 
 set -e
 
+REPO="gitflow/tui"
+BINARY_NAME="gitflow-tui"
+INSTALL_DIR="/usr/local/bin"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
-
-# Configuration
-REPO="gitflow/tui"
-BINARY_NAME="gitflow-tui"
-INSTALL_DIR="/usr/local/bin"
 
 # Detect OS and architecture
 detect_platform() {
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     ARCH=$(uname -m)
     
+    case "$OS" in
+        linux)
+            PLATFORM="linux"
+            ;;
+        darwin)
+            PLATFORM="darwin"
+            ;;
+        mingw*|msys*|cygwin*)
+            PLATFORM="windows"
+            INSTALL_DIR="$HOME/bin"
+            ;;
+        *)
+            echo -e "${RED}Unsupported OS: $OS${NC}"
+            exit 1
+            ;;
+    esac
+    
     case "$ARCH" in
-        x86_64)
+        x86_64|amd64)
             ARCH="amd64"
             ;;
         arm64|aarch64)
@@ -35,137 +49,83 @@ detect_platform() {
             ;;
     esac
     
-    case "$OS" in
-        linux|darwin)
-            ;;
-        mingw*|msys*|cygwin*)
-            OS="windows"
-            BINARY_NAME="${BINARY_NAME}.exe"
-            ;;
-        *)
-            echo -e "${RED}Unsupported operating system: $OS${NC}"
-            exit 1
-            ;;
-    esac
-    
-    PLATFORM="${OS}-${ARCH}"
+    if [ "$PLATFORM" = "windows" ]; then
+        BINARY_NAME="${BINARY_NAME}.exe"
+    fi
 }
 
 # Get latest release version
 get_latest_version() {
-    echo -e "${BLUE}Fetching latest version...${NC}"
-    
-    if command -v curl &> /dev/null; then
-        VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    elif command -v wget &> /dev/null; then
-        VERSION=$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    else
-        echo -e "${RED}curl or wget is required${NC}"
-        exit 1
-    fi
-    
+    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     if [ -z "$VERSION" ]; then
-        echo -e "${RED}Could not determine latest version${NC}"
+        echo -e "${RED}Failed to get latest version${NC}"
         exit 1
     fi
-    
-    echo -e "${GREEN}Latest version: $VERSION${NC}"
+    echo -e "${BLUE}Latest version: $VERSION${NC}"
 }
 
-# Download binary
-download_binary() {
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}-${PLATFORM}"
+# Download and install
+download_and_install() {
+    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME%-*}-${PLATFORM}-${ARCH}"
     
-    if [ "$OS" = "windows" ]; then
+    if [ "$PLATFORM" = "windows" ]; then
         DOWNLOAD_URL="${DOWNLOAD_URL}.exe"
     fi
     
-    TEMP_DIR=$(mktemp -d)
-    TEMP_FILE="${TEMP_DIR}/${BINARY_NAME}"
+    TMP_DIR=$(mktemp -d)
+    TMP_FILE="$TMP_DIR/$BINARY_NAME"
     
-    echo -e "${BLUE}Downloading ${BINARY_NAME} ${VERSION} for ${PLATFORM}...${NC}"
+    echo -e "${BLUE}Downloading from $DOWNLOAD_URL...${NC}"
+    curl -sSL "$DOWNLOAD_URL" -o "$TMP_FILE"
     
-    if command -v curl &> /dev/null; then
-        curl -sSL "$DOWNLOAD_URL" -o "$TEMP_FILE"
-    elif command -v wget &> /dev/null; then
-        wget -q "$DOWNLOAD_URL" -O "$TEMP_FILE"
-    fi
-    
-    if [ ! -f "$TEMP_FILE" ]; then
+    if [ ! -f "$TMP_FILE" ]; then
         echo -e "${RED}Download failed${NC}"
         exit 1
     fi
     
-    chmod +x "$TEMP_FILE"
-}
-
-# Install binary
-install_binary() {
-    echo -e "${BLUE}Installing to ${INSTALL_DIR}...${NC}"
+    chmod +x "$TMP_FILE"
     
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "$TEMP_FILE" "${INSTALL_DIR}/${BINARY_NAME}"
-    else
-        echo -e "${YELLOW}Requesting sudo access to install to ${INSTALL_DIR}${NC}"
-        sudo mv "$TEMP_FILE" "${INSTALL_DIR}/${BINARY_NAME}"
+    # Create install directory if needed
+    if [ ! -d "$INSTALL_DIR" ]; then
+        mkdir -p "$INSTALL_DIR"
     fi
     
-    rm -rf "$TEMP_DIR"
+    # Check if we need sudo
+    if [ -w "$INSTALL_DIR" ]; then
+        mv "$TMP_FILE" "$INSTALL_DIR/$BINARY_NAME"
+    else
+        echo -e "${BLUE}Requesting sudo access to install to $INSTALL_DIR...${NC}"
+        sudo mv "$TMP_FILE" "$INSTALL_DIR/$BINARY_NAME"
+    fi
     
-    echo -e "${GREEN}✓ ${BINARY_NAME} installed successfully!${NC}"
+    rm -rf "$TMP_DIR"
+    
+    echo -e "${GREEN}✓ Installed $BINARY_NAME to $INSTALL_DIR${NC}"
 }
 
 # Verify installation
-verify_installation() {
-    if command -v "$BINARY_NAME" &> /dev/null; then
-        echo -e "${GREEN}✓ Installation verified${NC}"
-        echo ""
-        echo -e "${BLUE}Version:${NC}"
-        "$BINARY_NAME" --version
-        echo ""
-        echo -e "${BLUE}Usage:${NC}"
-        echo "  $BINARY_NAME           # Launch TUI"
-        echo "  $BINARY_NAME --help    # Show help"
+verify() {
+    if command -v "$INSTALL_DIR/$BINARY_NAME" &> /dev/null; then
+        VERSION_OUTPUT=$($INSTALL_DIR/$BINARY_NAME --version 2>&1 || true)
+        echo -e "${GREEN}✓ Installation successful!${NC}"
+        echo -e "${BLUE}$VERSION_OUTPUT${NC}"
     else
-        echo -e "${RED}Installation verification failed${NC}"
-        echo -e "${YELLOW}Make sure ${INSTALL_DIR} is in your PATH${NC}"
+        echo -e "${RED}Installation may have failed. Please check $INSTALL_DIR is in your PATH.${NC}"
         exit 1
     fi
 }
 
-# Print banner
-print_banner() {
-    echo -e "${GREEN}"
-    echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                                                               ║"
-    echo "║   🌿 GitFlow TUI Installer                                   ║"
-    echo "║   Complete Git Management Terminal UI                        ║"
-    echo "║                                                               ║"
-    echo "╚═══════════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
-    echo ""
-}
-
-# Main installation
+# Main
 main() {
-    print_banner
+    echo -e "${BLUE}Installing GitFlow TUI...${NC}"
     
     detect_platform
     get_latest_version
-    download_binary
-    install_binary
-    verify_installation
+    download_and_install
+    verify
     
     echo ""
-    echo -e "${GREEN}Installation complete! 🎉${NC}"
-    echo ""
-    echo -e "${BLUE}Next steps:${NC}"
-    echo "  1. Navigate to a git repository"
-    echo "  2. Run: gitflow-tui"
-    echo "  3. Press '?' for help"
-    echo ""
-    echo -e "${BLUE}Documentation:${NC} https://github.com/${REPO}"
+    echo -e "${GREEN}Installation complete! Run 'gitflow-tui' to start.${NC}"
 }
 
-# Run main function
-main
+main "$@"
